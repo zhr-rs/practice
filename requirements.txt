@@ -1,0 +1,4 @@
+flask==2.3.3
+jieba==0.42.1
+snownlp==0.12.3
+bootstrap-flask==2.3.0
