@@ -1,4 +1,10 @@
-flask==2.3.3
+streamlit==1.32.2
 jieba==0.42.1
-snownlp==0.12.3
-bootstrap-flask==2.3.0
+pyecharts==2.0.3
+streamlit-echarts==0.4.0
+requests==2.31.0
+beautifulsoup4==4.12.3
+pandas==2.2.1
+matplotlib==3.8.3
+numpy==1.26.4
+glob2==0.7
