@@ -89,9 +89,37 @@ def save_content_to_file(content, file_name):
         st.error(f"❌ {file_name} 保存失败：{str(e)}")
 
 # ====================== 词频统计+过滤函数 ======================
-def get_filtered_word_freq(file_list, min_freq):
+def get_single_file_word_freq(file_name, min_freq):
     """
-    读取爬取的新闻文件，分词+过滤停用词/低频词，返回前20词频
+    读取单个新闻文件，分词+过滤停用词/低频词，返回前20词频
+    :param file_name: 单个新闻文件路径
+    :param min_freq: 最小词频阈值
+    :return: 排序后的前20词频字典
+    """
+    try:
+        with open(file_name, "r", encoding="utf-8") as f:
+            total_text = f.read()
+    except Exception as e:
+        st.warning(f"⚠️ 读取{file_name}失败：{str(e)}")
+        return {}
+    
+    if not total_text:
+        return {}
+    
+    # 文本清洗：只保留中文
+    clean_text = re.sub(r"[^\u4e00-\u9fa5]", "", total_text)
+    # 分词 + 过滤停用词/单字
+    words = [w for w in jieba.lcut(clean_text) if w not in STOP_WORDS and len(w) > 1]
+    # 统计词频 + 过滤低频词
+    word_count = Counter(words)
+    filtered_words = {word: freq for word, freq in word_count.items() if freq >= min_freq}
+    # 取前20并按词频降序排序
+    top20_words = dict(sorted(filtered_words.items(), key=lambda x: x[1], reverse=True)[:20])
+    return top20_words
+
+def get_merged_file_word_freq(file_list, min_freq):
+    """
+    （保留原有功能）合并所有新闻文件，分词+过滤停用词/低频词，返回前20词频
     :param file_list: 新闻文件列表
     :param min_freq: 最小词频阈值
     :return: 排序后的前20词频字典
@@ -121,13 +149,18 @@ def get_filtered_word_freq(file_list, min_freq):
     return top20_words
 
 # ====================== 多图表渲染函数 ======================
-def render_chart(chart_type, top20_words):
-    """根据选择的图表类型渲染可视化图形"""
+def render_chart(chart_type, top20_words, title_suffix=""):
+    """
+    根据选择的图表类型渲染可视化图形
+    :param chart_type: 图表类型
+    :param top20_words: 词频字典
+    :param title_suffix: 标题后缀（区分不同链接）
+    """
     words = list(top20_words.keys())
     freqs = list(top20_words.values())
     
     if not words:
-        st.warning("⚠️ 过滤后无有效词汇！请降低'最小词频'阈值")
+        st.warning(f"⚠️ 过滤后无有效词汇！{title_suffix} 请降低'最小词频'阈值")
         return
     
     # 1. 柱状图（词频前20）
@@ -137,7 +170,7 @@ def render_chart(chart_type, top20_words):
             .add_xaxis(words)
             .add_yaxis("词频", freqs, itemstyle_opts=opts.ItemStyleOpts(color="#1890ff"))
             .set_global_opts(
-                title_opts=opts.TitleOpts(title="新闻文本词频前20 - 柱状图", title_textstyle_opts=opts.TextStyleOpts(font_size=16)),
+                title_opts=opts.TitleOpts(title=f"新闻文本词频前20 - 柱状图 {title_suffix}", title_textstyle_opts=opts.TextStyleOpts(font_size=16)),
                 xaxis_opts=opts.AxisOpts(axislabel_opts=opts.LabelOpts(rotate=-45)),
                 yaxis_opts=opts.AxisOpts(name="出现次数"),
                 tooltip_opts=opts.TooltipOpts(trigger="axis", axis_pointer_type="shadow")
@@ -153,7 +186,7 @@ def render_chart(chart_type, top20_words):
             .add_yaxis("词频", freqs, itemstyle_opts=opts.ItemStyleOpts(color="#52c41a"))
             .reversal_axis()  # 反转轴，转为横向
             .set_global_opts(
-                title_opts=opts.TitleOpts(title="新闻文本词频前20 - 横向柱状图", title_textstyle_opts=opts.TextStyleOpts(font_size=16)),
+                title_opts=opts.TitleOpts(title=f"新闻文本词频前20 - 横向柱状图 {title_suffix}", title_textstyle_opts=opts.TextStyleOpts(font_size=16)),
                 yaxis_opts=opts.AxisOpts(name="词汇"),
                 xaxis_opts=opts.AxisOpts(name="出现次数"),
                 tooltip_opts=opts.TooltipOpts(trigger="axis", axis_pointer_type="shadow")
@@ -168,7 +201,7 @@ def render_chart(chart_type, top20_words):
             .add_xaxis(words)
             .add_yaxis("词频", freqs, is_smooth=True, itemstyle_opts=opts.ItemStyleOpts(color="#f5222d"))
             .set_global_opts(
-                title_opts=opts.TitleOpts(title="新闻文本词频前20 - 折线图", title_textstyle_opts=opts.TextStyleOpts(font_size=16)),
+                title_opts=opts.TitleOpts(title=f"新闻文本词频前20 - 折线图 {title_suffix}", title_textstyle_opts=opts.TextStyleOpts(font_size=16)),
                 xaxis_opts=opts.AxisOpts(axislabel_opts=opts.LabelOpts(rotate=-45)),
                 yaxis_opts=opts.AxisOpts(name="出现次数"),
                 tooltip_opts=opts.TooltipOpts(trigger="axis")
@@ -187,7 +220,7 @@ def render_chart(chart_type, top20_words):
                 center=["50%", "50%"]
             )
             .set_global_opts(
-                title_opts=opts.TitleOpts(title="新闻文本词频前10 - 饼图", title_textstyle_opts=opts.TextStyleOpts(font_size=16)),
+                title_opts=opts.TitleOpts(title=f"新闻文本词频前10 - 饼图 {title_suffix}", title_textstyle_opts=opts.TextStyleOpts(font_size=16)),
                 legend_opts=opts.LegendOpts(orient="vertical", pos_top="15%", pos_left="2%")
             )
             .set_series_opts(
@@ -204,7 +237,7 @@ def render_chart(chart_type, top20_words):
         # 叠加折线
         ax.plot(words, freqs, color="#fa8c16", linewidth=2)
         # 配置样式
-        ax.set_title("新闻文本词频前20 - 面积图", fontsize=14, pad=20)
+        ax.set_title(f"新闻文本词频前20 - 面积图 {title_suffix}", fontsize=14, pad=20)
         ax.set_xlabel("词汇", fontsize=12)
         ax.set_ylabel("出现次数", fontsize=12)
         ax.tick_params(axis="x", rotation=45)
@@ -235,7 +268,7 @@ def render_chart(chart_type, top20_words):
                 text = ax.text(j, i, heatmap_data[i, j], ha="center", va="center", color="black", fontsize=10)
         # 配置样式
         plt.colorbar(im, ax=ax, label="词频")
-        ax.set_title("新闻文本词频前20 - 热力图", fontsize=14, pad=20)
+        ax.set_title(f"新闻文本词频前20 - 热力图 {title_suffix}", fontsize=14, pad=20)
         plt.tight_layout()
         st.pyplot(fig)
     
@@ -250,7 +283,7 @@ def render_chart(chart_type, top20_words):
                 shape="circle"  # 词云形状：circle/rect/triangle等
             )
             .set_global_opts(
-                title_opts=opts.TitleOpts(title="新闻文本词频 - 词云图", title_textstyle_opts=opts.TextStyleOpts(font_size=16)),
+                title_opts=opts.TitleOpts(title=f"新闻文本词频 - 词云图 {title_suffix}", title_textstyle_opts=opts.TextStyleOpts(font_size=16)),
                 legend_opts=opts.LegendOpts(is_show=False)
             )
         )
@@ -301,6 +334,13 @@ if __name__ == "__main__":
             step=1,
             help="过滤出现次数少于该值的词汇"
         )
+        # 新增：分析模式选择
+        analysis_mode = st.radio(
+            label="🔍 分析模式",
+            options=["单独分析每个链接", "合并所有链接分析"],
+            index=0,
+            help="选择「单独分析」将为每个链接输出独立结果；「合并分析」输出综合结果（原有逻辑）"
+        )
         # 3. 图表类型选择
         chart_type = st.selectbox(
             label="📊 可视化图表",
@@ -332,39 +372,59 @@ if __name__ == "__main__":
             else:
                 # 爬取并保存每篇文章
                 st.subheader("🔍 爬取进度")
+                file_list = []  # 存储爬取成功的文件路径
                 for idx, url in enumerate(ARTICLE_URLS, start=1):
                     with st.expander(f"第{idx}篇：{url}", expanded=False):
                         st.info(f"正在爬取...")
                         content = get_webpage_content(url)
                         file_name = f"news{idx}.txt"
                         save_content_to_file(content, file_name)
+                        file_list.append(file_name)  # 加入文件列表
 
-                # 筛选爬取的新闻文件（匹配news+数字+.txt）
-                file_list = [f for f in glob.glob("news*.txt") if re.match(r"^news\d+\.txt$", f)]
                 if not file_list:
                     st.error("❌ 未找到有效新闻文件（news1.txt/news2.txt等）！")
                 else:
                     st.success(f"✅ 共找到{len(file_list)}个新闻文件，开始词频分析...")
                     st.divider()
 
-                    # 词频统计+过滤
-                    top20_words = get_filtered_word_freq(file_list, min_freq)
+                    # 模式1：单独分析每个链接
+                    if analysis_mode == "单独分析每个链接":
+                        for idx, file_name in enumerate(file_list, start=1):
+                            st.subheader(f"📋 第{idx}个链接 - 词频排名前20（文件：{file_name}）")
+                            # 单个文件词频分析
+                            top20_words = get_single_file_word_freq(file_name, min_freq)
+                            if top20_words:
+                                df_top20 = pd.DataFrame({
+                                    "排名": range(1, len(top20_words)+1),
+                                    "词汇": list(top20_words.keys()),
+                                    "词频": list(top20_words.values())
+                                })
+                                st.dataframe(df_top20, use_container_width=True)
+                            else:
+                                st.warning(f"⚠️ 第{idx}个链接无符合条件的词汇（请降低最小词频阈值）")
+                            
+                            # 单个文件可视化
+                            st.subheader(f"📊 第{idx}个链接 - {chart_type}")
+                            render_chart(chart_type, top20_words, title_suffix=f"（第{idx}个链接）")
+                            st.divider()  # 分隔不同链接的结果
 
-                    # 展示词频排名
-                    st.subheader("📋 词频排名前20")
-                    if top20_words:
-                        df_top20 = pd.DataFrame({
-                            "排名": range(1, len(top20_words)+1),
-                            "词汇": list(top20_words.keys()),
-                            "词频": list(top20_words.values())
-                        })
-                        st.dataframe(df_top20, use_container_width=True)
+                    # 模式2：合并所有链接分析（保留原有逻辑）
                     else:
-                        st.warning("⚠️ 无符合条件的词汇（请降低最小词频阈值）")
+                        st.subheader("📋 所有链接合并 - 词频排名前20")
+                        top20_words = get_merged_file_word_freq(file_list, min_freq)
+                        if top20_words:
+                            df_top20 = pd.DataFrame({
+                                "排名": range(1, len(top20_words)+1),
+                                "词汇": list(top20_words.keys()),
+                                "词频": list(top20_words.values())
+                            })
+                            st.dataframe(df_top20, use_container_width=True)
+                        else:
+                            st.warning("⚠️ 无符合条件的词汇（请降低最小词频阈值）")
 
-                    # 展示可视化图表
-                    st.subheader(f"📊 {chart_type}")
-                    render_chart(chart_type, top20_words)
+                        # 合并结果可视化
+                        st.subheader(f"📊 所有链接合并 - {chart_type}")
+                        render_chart(chart_type, top20_words, title_suffix="（所有链接合并）")
 
     # ---------------------- 辅助说明 ----------------------
     with st.expander("📖 使用说明", expanded=False):
@@ -372,8 +432,9 @@ if __name__ == "__main__":
         ### 使用步骤：
         1. 在侧边栏输入文章链接（多个链接用英文逗号`,`分割）；
         2. 调整「最小词频阈值」（过滤低频无意义词汇）；
-        3. 选择需要展示的可视化图表类型；
-        4. 点击「开始爬取并分析」按钮，等待结果。
+        3. 选择「分析模式」：单独分析每个链接 / 合并所有链接分析；
+        4. 选择需要展示的可视化图表类型；
+        5. 点击「开始爬取并分析」按钮，等待结果。
 
         ### 适配说明：
         - 爬取逻辑默认适配class为`fulong_news_content`的网站，可修改`app.py`中`get_webpage_content`函数的class名适配其他网站；
